@@ -17,7 +17,7 @@ package com.amazonaws.services.kinesis.leases.impl;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import com.amazonaws.util.json.JSONObject;
+import com.amazonaws.util.json.Jackson;
 
 /**
  * This class contains data pertaining to a Lease. Distributed systems may use leases to partition work across a
@@ -63,11 +63,17 @@ public class Lease {
      * @param lease lease to copy
      */
     protected Lease(Lease lease) {
-        this.leaseKey = lease.getLeaseKey();
-        this.leaseOwner = lease.getLeaseOwner();
-        this.leaseCounter = lease.getLeaseCounter();
-        this.concurrencyToken = lease.getConcurrencyToken();
-        this.lastCounterIncrementNanos = lease.getLastCounterIncrementNanos();
+        this(lease.getLeaseKey(), lease.getLeaseOwner(), lease.getLeaseCounter(), lease.getConcurrencyToken(),
+                lease.getLastCounterIncrementNanos());
+    }
+
+    protected Lease(String leaseKey, String leaseOwner, Long leaseCounter, UUID concurrencyToken,
+            Long lastCounterIncrementNanos) {
+        this.leaseKey = leaseKey;
+        this.leaseOwner = leaseOwner;
+        this.leaseCounter = leaseCounter;
+        this.concurrencyToken = concurrencyToken;
+        this.lastCounterIncrementNanos = lastCounterIncrementNanos;
     }
 
     /**
@@ -226,7 +232,7 @@ public class Lease {
 
     @Override
     public String toString() {
-        return new JSONObject(this).toString();
+        return Jackson.toJsonPrettyString(this);
     }
 
     /**

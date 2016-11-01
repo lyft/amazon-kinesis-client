@@ -1,4 +1,4 @@
-# Amazon Kinesis Client Library for Java 
+# Amazon Kinesis Client Library for Java [![Build Status](https://travis-ci.org/awslabs/amazon-kinesis-client.svg?branch=master)](https://travis-ci.org/awslabs/amazon-kinesis-client)
 
 The **Amazon Kinesis Client Library for Java** (Amazon KCL) enables Java developers to easily consume and process data from [Amazon Kinesis][kinesis].
 
@@ -29,6 +29,45 @@ For producer-side developers using the **[Kinesis Producer Library (KPL)][kinesi
 To make it easier for developers to write record processors in other languages, we have implemented a Java based daemon, called MultiLangDaemon that does all the heavy lifting. Our approach has the daemon spawn a sub-process, which in turn runs the record processor, which can be written in any language. The MultiLangDaemon process and the record processor sub-process communicate with each other over [STDIN and STDOUT using a defined protocol][multi-lang-protocol]. There will be a one to one correspondence amongst record processors, child processes, and shards. For Python developers specifically, we have abstracted these implementation details away and [expose an interface][kclpy] that enables you to focus on writing record processing logic in Python. This approach enables KCL to be language agnostic, while providing identical features and similar parallel processing model across all languages.
 
 ## Release Notes
+### Release 1.7.0 (August 22, 2016)
+* Add support for time based iterators ([See GetShardIterator Documentation](http://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetShardIterator.html))
+  * [PR #94](https://github.com/awslabs/amazon-kinesis-client/pull/94)
+  The `KinesisClientLibConfiguration` now supports providing an initial time stamp position.
+  * This position is only used if there is no current checkpoint for the shard.
+  * This setting cannot be used with DynamoDB Streams
+  Resolves [Issue #88](https://github.com/awslabs/amazon-kinesis-client/issues/88)
+* Allow Prioritization of Parent Shards for Task Assignment
+  * [PR #95](https://github.com/awslabs/amazon-kinesis-client/pull/95)
+  The `KinesisClientLibconfiguration` now supports providing a `ShardPrioritization` strategy.  This strategy controls how the `Worker` determines which `ShardConsumer` to call next.  This can improve processing for streams that split often, such as DynamoDB Streams.
+* Remove direct dependency on `aws-java-sdk-core`, to allow independent versioning.
+  * [PR #92](https://github.com/awslabs/amazon-kinesis-client/pull/92)
+  **You may need to add a direct dependency on aws-java-sdk-core if other dependencies include an older version.**
+
+### Release 1.6.5 (July 25, 2016)
+* Change LeaseManager to call DescribeTable before attempting to create the lease table.
+  * [Issue #36](https://github.com/awslabs/amazon-kinesis-client/issues/36)
+  * [PR #41](https://github.com/awslabs/amazon-kinesis-client/pull/41)
+  * [PR #67](https://github.com/awslabs/amazon-kinesis-client/pull/67)
+* Allow DynamoDB lease table name to be specified
+  * [PR #61](https://github.com/awslabs/amazon-kinesis-client/pull/61)
+* Add approximateArrivalTimestamp for JsonFriendlyRecord
+  * [PR #86](https://github.com/awslabs/amazon-kinesis-client/pull/86)
+* Shutdown lease renewal thread pool on exit.
+  * [PR #84](https://github.com/awslabs/amazon-kinesis-client/pull/84)
+* Wait for CloudWatch publishing thread to finish before exiting.
+  * [PR #82](https://github.com/awslabs/amazon-kinesis-client/pull/82)
+* Added unit, and integration tests for the library.
+
+### Release 1.6.4 (July 6, 2016)
+* Upgrade to AWS SDK for Java 1.11.14
+  * [Issue #74](https://github.com/awslabs/amazon-kinesis-client/issues/74)
+  * [Issue #73](https://github.com/awslabs/amazon-kinesis-client/issues/73)
+* **Maven Artifact Signing Change** 
+  * Artifacts are now signed by the identity `Amazon Kinesis Tools <amazon-kinesis-tools@amazon.com>`
+
+### Release 1.6.3 (May 12, 2016)
+* Fix format exception caused by DEBUG log in LeaseTaker [Issue # 68](https://github.com/awslabs/amazon-kinesis-client/issues/68)
+
 ### Release 1.6.2 (March 23, 2016)
 * Support for specifying max leases per worker and max leases to steal at a time.
 * Support for specifying initial DynamoDB table read and write capacity.
