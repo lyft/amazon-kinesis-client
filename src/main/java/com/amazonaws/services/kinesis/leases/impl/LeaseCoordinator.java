@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +47,7 @@ import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel;
  * LeaseCoordinator abstracts away LeaseTaker and LeaseRenewer from the application code that's using leasing. It owns
  * the scheduling of the two previously mentioned components as well as informing LeaseRenewer when LeaseTaker takes new
  * leases.
- * 
+ *
  */
 public class LeaseCoordinator<T extends Lease> {
 
@@ -70,6 +71,7 @@ public class LeaseCoordinator<T extends Lease> {
     // Package level access for testing.
     static final int MAX_LEASE_RENEWAL_THREAD_COUNT = 20;
 
+
     private final ILeaseRenewer<T> leaseRenewer;
     private final ILeaseTaker<T> leaseTaker;
     private final long renewerIntervalMillis;
@@ -80,8 +82,9 @@ public class LeaseCoordinator<T extends Lease> {
     protected final IMetricsFactory metricsFactory;
 
     private ScheduledExecutorService leaseCoordinatorThreadPool;
-    private ExecutorService leaseRenewalThreadpool;
+    private final ExecutorService leaseRenewalThreadpool;
     private volatile boolean running = false;
+    private ScheduledFuture<?> takerFuture;
 
     /**
      * Constructor.
@@ -198,15 +201,21 @@ public class LeaseCoordinator<T extends Lease> {
         leaseCoordinatorThreadPool = Executors.newScheduledThreadPool(2, LEASE_COORDINATOR_THREAD_FACTORY);
 
         // Taker runs with fixed DELAY because we want it to run slower in the event of performance degredation.
-        leaseCoordinatorThreadPool.scheduleWithFixedDelay(new TakerRunnable(), 0L, takerIntervalMillis, TimeUnit.MILLISECONDS);
+        takerFuture = leaseCoordinatorThreadPool.scheduleWithFixedDelay(new TakerRunnable(),
+                0L,
+                takerIntervalMillis,
+                TimeUnit.MILLISECONDS);
         // Renewer runs at fixed INTERVAL because we want it to run at the same rate in the event of degredation.
-        leaseCoordinatorThreadPool.scheduleAtFixedRate(new RenewerRunnable(), 0L, renewerIntervalMillis, TimeUnit.MILLISECONDS);
+        leaseCoordinatorThreadPool.scheduleAtFixedRate(new RenewerRunnable(),
+                0L,
+                renewerIntervalMillis,
+                TimeUnit.MILLISECONDS);
         running = true;
     }
 
     /**
      * Runs a single iteration of the lease taker - used by integration tests.
-     * 
+     *
      * @throws InvalidStateException
      * @throws DependencyException
      */
@@ -235,7 +244,7 @@ public class LeaseCoordinator<T extends Lease> {
 
     /**
      * Runs a single iteration of the lease renewer - used by integration tests.
-     * 
+     *
      * @throws InvalidStateException
      * @throws DependencyException
      */
@@ -263,7 +272,7 @@ public class LeaseCoordinator<T extends Lease> {
 
     /**
      * @param leaseKey lease key to fetch currently held lease for
-     * 
+     *
      * @return deep copy of currently held Lease for given key, or null if we don't hold the lease for that key
      */
     public T getCurrentlyHeldLease(String leaseKey) {
@@ -290,7 +299,6 @@ public class LeaseCoordinator<T extends Lease> {
                             leaseTaker.getWorkerIdentifier()));
                 } else {
                     leaseCoordinatorThreadPool.shutdownNow();
-                    leaseRenewalThreadpool.shutdownNow();
                     LOG.info(String.format("Worker %s stopped lease-tracking threads %dms after stop",
                         leaseTaker.getWorkerIdentifier(),
                         STOP_WAIT_TIME_MILLIS));
@@ -302,9 +310,31 @@ public class LeaseCoordinator<T extends Lease> {
             LOG.debug("Threadpool was null, no need to shutdown/terminate threadpool.");
         }
 
+        leaseRenewalThreadpool.shutdownNow();
         synchronized (shutdownLock) {
             leaseRenewer.clearCurrentlyHeldLeases();
             running = false;
+        }
+    }
+
+    /**
+     * Requests the cancellation of the lease taker.
+     */
+    public void stopLeaseTaker() {
+        takerFuture.cancel(false);
+
+    }
+
+    /**
+     * Requests that renewals for the given lease are stopped.
+     * 
+     * @param lease the lease to stop renewing.
+     */
+    public void dropLease(T lease) {
+        synchronized (shutdownLock) {
+            if (lease != null) {
+                leaseRenewer.dropLease(lease);
+            }
         }
     }
 
@@ -317,12 +347,12 @@ public class LeaseCoordinator<T extends Lease> {
 
     /**
      * Updates application-specific lease values in DynamoDB.
-     * 
+     *
      * @param lease lease object containing updated values
      * @param concurrencyToken obtained by calling Lease.getConcurrencyToken for a currently held lease
-     * 
+     *
      * @return true if update succeeded, false otherwise
-     * 
+     *
      * @throws InvalidStateException if lease table does not exist
      * @throws ProvisionedThroughputException if DynamoDB update fails due to lack of capacity
      * @throws DependencyException if DynamoDB update fails in an unexpected way

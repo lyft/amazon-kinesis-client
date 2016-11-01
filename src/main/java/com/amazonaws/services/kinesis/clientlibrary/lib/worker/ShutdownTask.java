@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Amazon Software License (the "License").
  * You may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcess
 import com.amazonaws.services.kinesis.clientlibrary.proxies.IKinesisProxy;
 import com.amazonaws.services.kinesis.clientlibrary.types.ExtendedSequenceNumber;
 import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownReason;
 import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease;
 import com.amazonaws.services.kinesis.leases.interfaces.ILeaseManager;
 import com.amazonaws.services.kinesis.metrics.impl.MetricsHelper;
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel;
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * Task for invoking the RecordProcessor shutdown() callback.
@@ -42,7 +42,7 @@ class ShutdownTask implements ITask {
     private final ShutdownReason reason;
     private final IKinesisProxy kinesisProxy;
     private final ILeaseManager<KinesisClientLease> leaseManager;
-    private final InitialPositionInStream initialPositionInStream;
+    private final InitialPositionInStreamExtended initialPositionInStream;
     private final boolean cleanupLeasesOfCompletedShards;
     private final TaskType taskType = TaskType.SHUTDOWN;
     private final long backoffTimeMillis;
@@ -56,7 +56,7 @@ class ShutdownTask implements ITask {
             RecordProcessorCheckpointer recordProcessorCheckpointer,
             ShutdownReason reason,
             IKinesisProxy kinesisProxy,
-            InitialPositionInStream initialPositionInStream,
+            InitialPositionInStreamExtended initialPositionInStream,
             boolean cleanupLeasesOfCompletedShards,
             ILeaseManager<KinesisClientLease> leaseManager,
             long backoffTimeMillis) {
@@ -153,6 +153,11 @@ class ShutdownTask implements ITask {
     @Override
     public TaskType getTaskType() {
         return taskType;
+    }
+
+    @VisibleForTesting
+    ShutdownReason getReason() {
+        return reason;
     }
 
 }
